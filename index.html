@@ -28,18 +28,18 @@ var color_scale;
 var minMaxAge;
 
 //d3.csv("rdb723.csv", function(data) {
-d3.csv("rdb723+age+sex+dx.csv", function(data) {
+d3.csv("rdb723.csv", function(data) {
 
     var i,k;
     dataset=data.map(function(d) {
         var a=[],o={};
         for(k in d) {
-//            if(k=="Measure:volume")
             if(k=="SubID")
                 o.name=d[k].slice(0,3);
             else
-            if(k=="AGE_at_scan")
+            if(k=="AGE_at_scan") {
                 o.age=parseFloat(d[k]);
+            }
             else
             if(k=="Sex")
                 o.sex=parseFloat(d[k]);
@@ -54,12 +54,18 @@ d3.csv("rdb723+age+sex+dx.csv", function(data) {
     });
     
     // configure colour scale
-    minMaxAge={min:labels[0].age,max:labels[0].age};
+    minMaxAge={min:-1,max:-1};
     for(i=0;i<labels.length;i++) {
+        if(isNaN(labels[i].age))
+            continue;
+        if(minMaxAge.min<0) {
+            minMaxAge.min=labels[i].age;
+            minMaxAge.max=labels[i].age;
+        }
         if(labels[i].age<minMaxAge.min) minMaxAge.min=labels[i].age;
         if(labels[i].age>minMaxAge.max) minMaxAge.max=labels[i].age;
     }
-    color_scale = d3.scale.linear().domain([minMaxAge.min,minMaxAge.max]).range(['blue', 'red']);
+    color_scale = d3.scale.linear().domain([minMaxAge.min,(minMaxAge.min+minMaxAge.max)/2,minMaxAge.max]).range(['green','blue', 'red']);
     
     // init t-SNE
     tsne.initDataRaw(dataset);
@@ -89,7 +95,7 @@ function add() {
         .data(Y)
       .enter()
         .append("circle")
-        .attr("r", 5)
+        .attr("r", 10)
         .attr("cx", function(d){return width*(d[0]-bbox.x0)/(bbox.x1-bbox.x0)})
         .attr("cy", function(d){return height*(d[1]-bbox.y0)/(bbox.y1-bbox.y0)})
         .style("stroke", 'white')
@@ -101,7 +107,9 @@ function add() {
                     if(labels[i].dx==1) c='red';
                     break;
                 case 'age':
-                    var c=color_scale(labels[i].age);
+                    var c='grey';
+                    if(!isNaN(labels[i].age))
+                        c=color_scale(labels[i].age);
                     break;
                 case 'sex':
                     var c='grey';
