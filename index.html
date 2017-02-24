@@ -1,5 +1,11 @@
 <body>
 
+<select onchange="change()">
+    <option value="dx">Diagnosis</option>
+    <option value="sex">Sex</option>
+    <option value="age">Age</option>
+</select>
+
 <svg id="svg">
 </svg>
 
@@ -149,6 +155,32 @@ function update() {
     svg.selectAll("text")
         .attr("x", function(d,i) {return width*(d[0]-bbox.x0)/(bbox.x1-bbox.x0)})
         .attr("y", function(d,i) {return height*(d[1]-bbox.y0)/(bbox.y1-bbox.y0)})
+}
+
+function change() {
+    g_fillVariable = d3.select("select").node().value;
+    
+    svg.selectAll("circle")
+        .style("fill", function(d,i) {
+            switch(g_fillVariable) {
+                case 'dx':
+                    var c='grey';
+                    if(labels[i].dx==0) c='blue';
+                    if(labels[i].dx==1) c='red';
+                    break;
+                case 'age':
+                    var c='grey';
+                    if(!isNaN(labels[i].age))
+                        c=color_scale(labels[i].age);
+                    break;
+                case 'sex':
+                    var c='grey';
+                    if(labels[i].sex==2) c='blue';
+                    if(labels[i].sex==1) c='red';
+                    break;
+            }
+            return c;
+        });
 }
 
 // initialize data. Here we have 3 points and some example pairwise dissimilarities
