@@ -1,0 +1,192 @@
+<html>
+<body>
+<div id='view' style="width:100%;height:100%"></div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/three.js/84/three.min.js'></script>
+<script src='https://cdn.rawgit.com/mrdoob/three.js/dev/examples/js/controls/TrackballControls.js'></script>
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<script src="tsne.js"></script>
+<script>
+"use strict";
+var scene,renderer,camera,cameraControls,light,geometry=[];
+var dataset, labels=[], Y
+var color_scale;
+var minMaxAge;
+
+var opt = {
+    epsilon: 10, // epsilon is learning rate (10 = default)
+    perplexity: 50, // roughly how many neighbors each point influences (30 = default)
+    dim: 3 // dimensionality of the embedding (2 = default)
+};
+var tsne = new tsnejs.tSNE(opt); // create a tSNE instance
+
+d3.csv("rdb723.csv", function(data) {
+    var i,k;
+    dataset=data.map(function(d) {
+        var a=[],o={};
+        for(k in d) {
+            if(k=="SubID")
+                o.name=d[k].slice(0,3);
+            else
+            if(k=="AGE_at_scan") {
+                o.age=parseFloat(d[k]);
+            }
+            else
+            if(k=="Sex")
+                o.sex=parseFloat(d[k]);
+            else
+            if(k=="PsychASD")
+                o.dx=parseFloat(d[k]);
+            else
+                a.push(parseFloat(d[k]));
+        }
+        labels.push(o);
+        return a;
+    });
+
+    // configure colour scale
+    minMaxAge={min:-1,max:-1};
+    for(i=0;i<labels.length;i++) {
+        if(isNaN(labels[i].age))
+            continue;
+        if(minMaxAge.min<0) {
+            minMaxAge.min=labels[i].age;
+            minMaxAge.max=labels[i].age;
+        }
+        if(labels[i].age<minMaxAge.min) minMaxAge.min=labels[i].age;
+        if(labels[i].age>minMaxAge.max) minMaxAge.max=labels[i].age;
+    }
+    color_scale = d3.scale.linear().domain([minMaxAge.min,(minMaxAge.min+minMaxAge.max)/2,minMaxAge.max]).range(['green','blue', 'red']);
+
+    // init render
+    init()
+
+    // init t-SNE
+    tsne.initDataRaw(dataset);
+    tsne.step(); // every time you call this, solution gets better
+    add();
+
+    // start animation
+    setInterval(function() {
+        tsne.step(); // every time you call this, solution gets better
+        update();
+    },50);
+        
+    // trigger animation
+    animate();
+});
+
+
+function init() {
+    var w, h;
+    var container=$('#view');
+    w = container.width();
+    h = container.height();
+
+// init the scene
+    renderer = new THREE.WebGLRenderer({
+        antialias				: true,	// to get smoother output
+        preserveDrawingBuffer	: true	// to allow screenshot
+    });
+    renderer.setSize( w, h );
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container[0].appendChild(renderer.domElement);
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color( 0x000000 );
+    camera	= new THREE.PerspectiveCamera(35, w/h, 1, 100 );
+    camera.position.set(0, 0, 40);
+    scene.add(camera);
+
+    // create a camera control
+    cameraControls=new THREE.TrackballControls(camera,container[0] )
+    cameraControls.addEventListener('change', function(){light.position.copy( camera.position );} );
+    cameraControls.rotateSpeed = 6;
+
+    light	= new THREE.AmbientLight( 0x3f3f3f );
+    scene.add( light );
+    light	= new THREE.PointLight( 0xffffff,2,80 );
+    light.position.copy( camera.position );
+    scene.add( light );
+}
+
+function add() {
+    var i,j;
+    Y = tsne.getSolution(); // Y is an array of 2-D points that you can plot
+    var bbox={
+        x0:Y[0][0],y0:Y[0][1],z0:Y[0][2],
+        x1:Y[0][0],y1:Y[0][1],z1:Y[0][2]
+    };
+    for(i=0;i<Y.length;i++) {
+        if(Y[i][0]<bbox.x0) bbox.x0=Y[i][0];
+        if(Y[i][0]>bbox.x1) bbox.x1=Y[i][0];
+        if(Y[i][1]<bbox.y0) bbox.y0=Y[i][1];
+        if(Y[i][1]>bbox.y1) bbox.y1=Y[i][1];
+        if(Y[i][2]<bbox.z0) bbox.z0=Y[i][2];
+        if(Y[i][2]>bbox.z1) bbox.z1=Y[i][2];
+    }
+
+    // Add stereotaxic coordinates as spheres
+    var geom = new THREE.SphereGeometry(0.3,8,8);
+    var	color;
+    for(var j=0;j<Y.length;j++) {
+        var x=Y[j][0];
+        var y=Y[j][1];
+        var z=Y[j][2];
+        if(labels[j].dx==0) {
+            color=0x00ff00;
+        } else
+        if(labels[j].dx==1) {
+            color=0xff0000;
+        } else
+            color=0x999999;
+        var sph = new THREE.Mesh( geom, new THREE.MeshLambertMaterial({color: color, wireframe: true}));
+        sph.position.x=10-20*(x-bbox.x0)/(bbox.x1-bbox.x0);
+        sph.position.y=10-20*(y-bbox.y0)/(bbox.y1-bbox.y0);
+        sph.position.z=10-20*(z-bbox.z0)/(bbox.z1-bbox.z0);
+        scene.add(sph);
+        geometry.push(sph);
+    }
+}
+
+function update() {
+    var i,j;
+    Y = tsne.getSolution(); // Y is an array of 3-D points that you can plot
+    var bbox={
+        x0:Y[0][0],y0:Y[0][1],z0:Y[0][2],
+        x1:Y[0][0],y1:Y[0][1],z1:Y[0][2]
+    };
+    for(i=0;i<Y.length;i++) {
+        if(Y[i][0]<bbox.x0) bbox.x0=Y[i][0];
+        if(Y[i][0]>bbox.x1) bbox.x1=Y[i][0];
+        if(Y[i][1]<bbox.y0) bbox.y0=Y[i][1];
+        if(Y[i][1]>bbox.y1) bbox.y1=Y[i][1];
+        if(Y[i][2]<bbox.z0) bbox.z0=Y[i][2];
+        if(Y[i][2]>bbox.z1) bbox.z1=Y[i][2];
+    }
+
+    var x,y,z,j,sph;
+    for(j=0;j<Y.length;j++) {
+        x=Y[j][0];
+        y=Y[j][1];
+        z=Y[j][2];
+        sph=geometry[j]; 
+        sph.position.x=10-20*(x-bbox.x0)/(bbox.x1-bbox.x0);
+        sph.position.y=10-20*(y-bbox.y0)/(bbox.y1-bbox.y0);
+        sph.position.z=10-20*(z-bbox.z0)/(bbox.z1-bbox.z0);
+    }
+}
+
+function animate() {
+    requestAnimationFrame( animate );
+    render();
+}
+function render() {
+    cameraControls.update();
+    renderer.render( scene, camera );
+}
+</script>
+
+</body>
+</html>
