@@ -280,19 +280,6 @@ var tsnejs = tsnejs || { REVISION: 'ALPHA' };
         }
       }
 
-      // reproject Y to a sphere of radius R
-      var R = 10, radius;
-      for(var i=0;i<N;i++) {
-        radius = 0;
-        for(var d=0;d<this.dim;d++) {
-          radius += this.Y[i][d] * this.Y[i][d];
-        }
-        radius = Math.sqrt(radius) / R;
-        for(var d=0;d<this.dim;d++) {
-          this.Y[i][d] = this.Y[i][d] / radius;
-        }
-      }
-
       //if(this.iter%100===0) console.log('iter ' + this.iter + ', cost: ' + cost);
       return cost; // return current cost
     },
